@@ -1,6 +1,23 @@
 use num_traits::Float;
 use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
 
+#[cfg(feature = "nalgebra-backend")]
+use nalgebra::RealField;
+
+#[cfg(feature = "nalgebra-backend")]
+pub trait Scalar: Float + RealField + AddAssign + SubAssign + MulAssign + DivAssign {
+    fn default_abs_tol() -> Self;
+    fn default_rel_tol() -> Self;
+    fn default_chol_diag_tol() -> Self;
+
+    fn approx_eq(a: Self, b: Self) -> bool {
+        let diff = Float::abs(a - b);
+        diff <= Self::default_abs_tol()
+            + Self::default_rel_tol() * Float::max(Float::abs(a), Float::abs(b))
+    }
+}
+
+#[cfg(not(feature = "nalgebra-backend"))]
 pub trait Scalar: Float + AddAssign + SubAssign + MulAssign + DivAssign {
     fn default_abs_tol() -> Self;
     fn default_rel_tol() -> Self;

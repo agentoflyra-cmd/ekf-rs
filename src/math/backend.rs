@@ -1,5 +1,8 @@
-use crate::math::{errors::LinAlgError, matmul::matmul_2d, scalar_trait::Scalar};
-
+#[cfg(not(feature = "nalgebra-backend"))]
+use crate::math::matmul::matmul_2d;
+use crate::math::{errors::LinAlgError, scalar_trait::Scalar};
+#[cfg(feature = "nalgebra-backend")]
+use nalgebra::{DMatrix, DMatrixView, RealField};
 use super::matrix::Matrix;
 use std::sync::Arc;
 
@@ -25,7 +28,6 @@ where
     ) -> Result<Matrix<T>, LinAlgError<T>>;
 }
 
-// check before add
 fn check_add_shape<T>(lhs: &Matrix<T>, rhs: &Matrix<T>) -> Result<(), LinAlgError<T>>
 where
     T: Scalar,
@@ -86,52 +88,6 @@ where
     Ok((m, k, n))
 }
 
-fn pack_rhs<T>(array: &Matrix<T>) -> Matrix<T>
-where
-    T: Scalar,
-{
-    let rows = array.shape()[0];
-    let cols = array.shape()[1];
-    let mut out = vec![T::zero(); rows * cols];
-
-    for i in 0..rows {
-        for j in 0..cols {
-            out[j * rows + i] = array.storage[i * cols + j];
-        }
-    }
-
-    Matrix {
-        storage: Arc::from(out),
-        rows: cols,
-        cols: rows,
-    }
-}
-
-fn matmul_rhs_t<T>(lhs: &Matrix<T>, rhs_t: &Matrix<T>) -> Result<Matrix<T>, LinAlgError<T>>
-where
-    T: Scalar,
-{
-    let (m, k, n) = check_matmul_rhs_t_shape(lhs, rhs_t)?;
-    Ok(Matrix {
-        storage: matmul_2d(&lhs.storage, &rhs_t.storage, m, k, n),
-        rows: m,
-        cols: n,
-    })
-}
-
-fn swap_rows<T>(storage: &mut [T], cols: usize, lhs_row: usize, rhs_row: usize)
-where
-    T: Scalar,
-{
-    if lhs_row == rhs_row {
-        return;
-    }
-
-    for col in 0..cols {
-        storage.swap(lhs_row * cols + col, rhs_row * cols + col);
-    }
-}
-
 fn check_square_non_empty<T>(lhs: &Matrix<T>) -> Result<(), LinAlgError<T>>
 where
     T: Scalar,
@@ -159,7 +115,7 @@ where
         for j in 0..i {
             let a = lhs.storage[i * lhs.cols + j];
             let b = lhs.storage[j * lhs.cols + i];
-            let diff = (a - b).abs();
+            let diff = num_traits::Float::abs(a - b);
             if !T::approx_eq(a, b) {
                 return Err(LinAlgError::NotSymmetric {
                     matrix_name,
@@ -172,6 +128,73 @@ where
     Ok(())
 }
 
+#[cfg(feature = "nalgebra-backend")]
+fn check_finite<T>(matrix: &Matrix<T>) -> Result<(), LinAlgError<T>>
+where
+    T: Scalar,
+{
+    for &value in matrix.storage.iter() {
+        if value.is_nan() {
+            return Err(LinAlgError::Nan);
+        }
+        if value.is_infinite() {
+            return Err(LinAlgError::Inf);
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(not(feature = "nalgebra-backend"))]
+fn pack_rhs<T>(array: &Matrix<T>) -> Matrix<T>
+where
+    T: Scalar,
+{
+    let rows = array.shape()[0];
+    let cols = array.shape()[1];
+    let mut out = vec![T::zero(); rows * cols];
+
+    for i in 0..rows {
+        for j in 0..cols {
+            out[j * rows + i] = array.storage[i * cols + j];
+        }
+    }
+
+    Matrix {
+        storage: Arc::from(out),
+        rows: cols,
+        cols: rows,
+    }
+}
+
+#[cfg(not(feature = "nalgebra-backend"))]
+fn matmul_rhs_t<T>(lhs: &Matrix<T>, rhs_t: &Matrix<T>) -> Result<Matrix<T>, LinAlgError<T>>
+where
+    T: Scalar,
+{
+    let (m, k, n) = check_matmul_rhs_t_shape(lhs, rhs_t)?;
+    Ok(Matrix {
+        storage: matmul_2d(&lhs.storage, &rhs_t.storage, m, k, n),
+        rows: m,
+        cols: n,
+    })
+}
+
+#[cfg(not(feature = "nalgebra-backend"))]
+fn swap_rows<T>(storage: &mut [T], cols: usize, lhs_row: usize, rhs_row: usize)
+where
+    T: Scalar,
+{
+    if lhs_row == rhs_row {
+        return;
+    }
+
+    for col in 0..cols {
+        storage.swap(lhs_row * cols + col, rhs_row * cols + col);
+    }
+}
+
+#[cfg(not(feature = "nalgebra-backend"))]
 struct LuDecomposition<T>
 where
     T: Scalar,
@@ -181,20 +204,21 @@ where
     size: usize,
 }
 
+#[cfg(not(feature = "nalgebra-backend"))]
 struct CholeskyDecompositon<T>
 where
     T: Scalar,
 {
     storage: Vec<T>,
-    // permutation: Vec<usize>,
-    // swap_count: usize,
     size: usize,
 }
 
+#[cfg(not(feature = "nalgebra-backend"))]
 fn index(i: usize, j: usize) -> usize {
     ((i * (i + 1)) >> 1) + j
 }
 
+#[cfg(not(feature = "nalgebra-backend"))]
 impl<T> CholeskyDecompositon<T>
 where
     T: Scalar,
@@ -222,6 +246,7 @@ where
     }
 }
 
+#[cfg(not(feature = "nalgebra-backend"))]
 fn lu_decompose<T>(
     lhs: &Matrix<T>,
     matrix_name: &'static str,
@@ -282,6 +307,7 @@ where
     })
 }
 
+#[cfg(not(feature = "nalgebra-backend"))]
 fn cholesky_decompose<T>(
     lhs: &Matrix<T>,
     matrix_name: &'static str,
@@ -314,7 +340,6 @@ where
                     });
                 }
                 if sum <= threshold {
-                    // return Err(format!("cholesky failed: matrix not SPD at diagonal {}", i));
                     return Err(LinAlgError::NearSingular {
                         matrix_name,
                         index: i,
@@ -340,6 +365,7 @@ where
     Ok(out)
 }
 
+#[cfg(not(feature = "nalgebra-backend"))]
 fn cholesky_solve<T>(
     l: &CholeskyDecompositon<T>,
     rhs: &Matrix<T>,
@@ -363,7 +389,6 @@ where
     let mut x = Matrix::zeros(n, m);
     let x_storage = Arc::make_mut(&mut x.storage);
 
-    // forward substitution: L y = rhs
     for col in 0..m {
         for i in 0..n {
             let mut sum = rhs.storage[i * rhs.cols + col];
@@ -373,7 +398,6 @@ where
             let diag = l.get(i, i);
             let threshold = diag.abs().max(T::one()) * T::default_chol_diag_tol();
             if diag < T::zero() {
-                // return Err(format!("forward substitution failed at diagonal {}", i));
                 return Err(LinAlgError::NotSpd {
                     matrix_name,
                     index: i,
@@ -393,7 +417,6 @@ where
         }
     }
 
-    // backward substitution: L^T x = y
     for col in 0..m {
         for ii in 0..n {
             let i = n - 1 - ii;
@@ -404,7 +427,6 @@ where
             let diag = l.get(i, i);
             let threshold = diag.abs().max(T::one()) * T::default_chol_diag_tol();
             if diag < T::zero() {
-                // return Err(format!("forward substitution failed at diagonal {}", i));
                 return Err(LinAlgError::NotSpd {
                     matrix_name,
                     index: i,
@@ -428,17 +450,12 @@ where
     Ok(x)
 }
 
+#[cfg(not(feature = "nalgebra-backend"))]
 fn lu_solve<T>(lu: &LuDecomposition<T>, rhs: &Matrix<T>) -> Result<Matrix<T>, LinAlgError<T>>
 where
     T: Scalar,
 {
     if lu.size != rhs.rows {
-        // return Err(format!(
-        //     "solve shape mismatch: lhs [{}, {}], rhs {:?}",
-        //     lu.size,
-        //     lu.size,
-        //     rhs.shape()
-        // ));
         return Err(LinAlgError::DimensionMismatch {
             op: "lu_solve",
             lhs: (lu.size, lu.size),
@@ -464,9 +481,6 @@ where
             if factor.abs() <= threshold {
                 continue;
             }
-            // if factor.abs() < T::epsilon() {
-            // continue;
-            // }
 
             for col in 0..rhs_cols {
                 let pivot_rhs = out[i * rhs_cols + col];
@@ -502,6 +516,90 @@ where
     })
 }
 
+#[cfg(feature = "nalgebra-backend")]
+fn to_dmatrix<T>(matrix: &Matrix<T>) -> Result<DMatrix<T>, LinAlgError<T>>
+where
+    T: Scalar + RealField + Copy,
+{
+    check_finite(matrix)?;
+    Ok(DMatrix::from_row_slice(
+        matrix.rows,
+        matrix.cols,
+        &matrix.storage,
+    ))
+}
+
+#[cfg(feature = "nalgebra-backend")]
+fn transposed_col_major_view<T>(matrix: &Matrix<T>) -> Result<DMatrixView<'_, T>, LinAlgError<T>>
+where
+    T: Scalar + RealField + Copy,
+{
+    check_finite(matrix)?;
+    Ok(DMatrixView::from_slice(&matrix.storage, matrix.cols, matrix.rows))
+}
+
+#[cfg(feature = "nalgebra-backend")]
+fn from_dmatrix<T>(matrix: &DMatrix<T>) -> Result<Matrix<T>, LinAlgError<T>>
+where
+    T: Scalar + RealField + Copy,
+{
+    let mut storage = Vec::with_capacity(matrix.nrows() * matrix.ncols());
+    for row in 0..matrix.nrows() {
+        for col in 0..matrix.ncols() {
+            let value = matrix[(row, col)];
+            if value.is_nan() {
+                return Err(LinAlgError::Nan);
+            }
+            if value.is_infinite() {
+                return Err(LinAlgError::Inf);
+            }
+            storage.push(value);
+        }
+    }
+
+    Ok(Matrix {
+        storage: Arc::from(storage),
+        rows: matrix.nrows(),
+        cols: matrix.ncols(),
+    })
+}
+
+#[cfg(feature = "nalgebra-backend")]
+fn from_transposed_dmatrix<T>(
+    matrix_t: &DMatrix<T>,
+    rows: usize,
+    cols: usize,
+) -> Result<Matrix<T>, LinAlgError<T>>
+where
+    T: Scalar + RealField + Copy,
+{
+    if matrix_t.nrows() != cols || matrix_t.ncols() != rows {
+        return Err(LinAlgError::DimensionMismatch {
+            op: "from_transposed_dmatrix",
+            lhs: (cols, rows),
+            rhs: (matrix_t.nrows(), matrix_t.ncols()),
+        });
+    }
+
+    let mut storage = Vec::with_capacity(rows * cols);
+    for &value in matrix_t.as_slice() {
+        if value.is_nan() {
+            return Err(LinAlgError::Nan);
+        }
+        if value.is_infinite() {
+            return Err(LinAlgError::Inf);
+        }
+        storage.push(value);
+    }
+
+    Ok(Matrix {
+        storage: Arc::from(storage),
+        rows,
+        cols,
+    })
+}
+
+#[cfg(not(feature = "nalgebra-backend"))]
 impl<T> Backend<T> for Matrix<T>
 where
     T: Scalar,
@@ -573,6 +671,162 @@ where
     ) -> Result<Matrix<T>, LinAlgError<T>> {
         let cholesky = cholesky_decompose(self, matrix_name)?;
         cholesky_solve(&cholesky, rhs, matrix_name)
+    }
+}
+
+#[cfg(feature = "nalgebra-backend")]
+impl<T> Backend<T> for Matrix<T>
+where
+    T: Scalar + RealField + Copy,
+{
+    fn add(&self, rhs: &Matrix<T>) -> Result<Matrix<T>, LinAlgError<T>> {
+        check_add_shape(self, rhs)?;
+        check_finite(self)?;
+        check_finite(rhs)?;
+
+        let mut out = Vec::with_capacity(self.storage.len());
+        for i in 0..self.storage.len() {
+            let value = self.storage[i] + rhs.storage[i];
+            if value.is_nan() {
+                return Err(LinAlgError::Nan);
+            }
+            if value.is_infinite() {
+                return Err(LinAlgError::Inf);
+            }
+            out.push(value);
+        }
+
+        Ok(Self {
+            storage: Arc::from(out),
+            rows: self.rows(),
+            cols: self.cols(),
+        })
+    }
+
+    fn sub(&self, rhs: &Matrix<T>) -> Result<Matrix<T>, LinAlgError<T>> {
+        check_add_shape(self, rhs)?;
+        check_finite(self)?;
+        check_finite(rhs)?;
+
+        let mut out = Vec::with_capacity(self.storage.len());
+        for i in 0..self.storage.len() {
+            let value = self.storage[i] - rhs.storage[i];
+            if value.is_nan() {
+                return Err(LinAlgError::Nan);
+            }
+            if value.is_infinite() {
+                return Err(LinAlgError::Inf);
+            }
+            out.push(value);
+        }
+
+        Ok(Self {
+            storage: Arc::from(out),
+            rows: self.rows(),
+            cols: self.cols(),
+        })
+    }
+
+    fn matmul(&self, rhs: &Matrix<T>) -> Result<Matrix<T>, LinAlgError<T>> {
+        check_matmul_shape(self, rhs)?;
+        let lhs_t = transposed_col_major_view(self)?;
+        let rhs_t = transposed_col_major_view(rhs)?;
+        let product_t = rhs_t * lhs_t;
+        from_transposed_dmatrix(&product_t, self.rows(), rhs.cols())
+    }
+
+    fn matmul_transposed_rhs(&self, rhs_t: &Matrix<T>) -> Result<Matrix<T>, LinAlgError<T>> {
+        check_matmul_rhs_t_shape(self, rhs_t)?;
+        let lhs_t = transposed_col_major_view(self)?;
+        let rhs = transposed_col_major_view(rhs_t)?;
+        let product_t = rhs.transpose() * lhs_t;
+        from_transposed_dmatrix(&product_t, self.rows(), rhs_t.rows())
+    }
+
+    fn scale(&self, rhs: T) -> Result<Matrix<T>, LinAlgError<T>> {
+        check_finite(self)?;
+        if rhs.is_nan() {
+            return Err(LinAlgError::Nan);
+        }
+        if rhs.is_infinite() {
+            return Err(LinAlgError::Inf);
+        }
+
+        let mut out = Vec::with_capacity(self.storage.len());
+        for &value in self.storage.iter() {
+            let scaled = value * rhs;
+            if scaled.is_nan() {
+                return Err(LinAlgError::Nan);
+            }
+            if scaled.is_infinite() {
+                return Err(LinAlgError::Inf);
+            }
+            out.push(scaled);
+        }
+
+        Ok(Self {
+            storage: Arc::from(out),
+            rows: self.rows(),
+            cols: self.cols(),
+        })
+    }
+
+    fn solve(
+        &self,
+        rhs: &Matrix<T>,
+        matrix_name: &'static str,
+    ) -> Result<Matrix<T>, LinAlgError<T>> {
+        check_square_non_empty(self)?;
+        if self.rows != rhs.rows {
+            return Err(LinAlgError::DimensionMismatch {
+                op: "solve",
+                lhs: (self.rows, self.cols),
+                rhs: rhs.shape().into(),
+            });
+        }
+
+        let lhs = to_dmatrix(self)?;
+        let rhs = to_dmatrix(rhs)?;
+        let lu = lhs.lu();
+        let Some(solution) = lu.solve(&rhs) else {
+            return Err(LinAlgError::Singular {
+                matrix_name,
+                index: 0,
+                pivot_abs: T::zero(),
+                threshold: T::default_rel_tol(),
+            });
+        };
+
+        from_dmatrix(&solution)
+    }
+
+    fn solve_spd(
+        &self,
+        rhs: &Matrix<T>,
+        matrix_name: &'static str,
+    ) -> Result<Matrix<T>, LinAlgError<T>> {
+        check_square_non_empty(self)?;
+        symmetric_check(self, matrix_name)?;
+        if self.rows != rhs.rows {
+            return Err(LinAlgError::DimensionMismatch {
+                op: "solve_spd",
+                lhs: (self.rows, self.cols),
+                rhs: rhs.shape().into(),
+            });
+        }
+
+        let lhs = to_dmatrix(self)?;
+        let rhs = to_dmatrix(rhs)?;
+        let Some(cholesky) = lhs.cholesky() else {
+            return Err(LinAlgError::NotSpd {
+                matrix_name,
+                index: 0,
+                diag_candidate: T::zero(),
+                threshold: T::default_chol_diag_tol(),
+            });
+        };
+
+        from_dmatrix(&cholesky.solve(&rhs))
     }
 }
 
