@@ -164,17 +164,6 @@ That means debugging bad sensor data or filter divergence will still be difficul
 
 The error type is now structured, but there is still no diagnostics pipeline that records these failures at the EKF layer.
 
-### 5. API clarity can still improve
-
-`matmul_transposed_rhs()` is correct and efficient, but subtle.
-
-Its contract is:
-
-- `matmul(rhs)` means ordinary `A * B`
-- `matmul_transposed_rhs(rhs_t)` means the argument is stored as `B^T`, but the math is still `A * B`
-
-This should stay documented close to the backend trait and tests.
-
 ## Production Readiness Roadmap
 
 ### Priority 1: Diagnostics and failure handling
