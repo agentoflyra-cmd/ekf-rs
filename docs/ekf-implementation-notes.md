@@ -11,18 +11,23 @@ The project now has a working EKF prototype with the main numerical pieces in pl
 - `matmul_transposed_rhs()` for the common `A * B^T` path
 - generic `solve()` using LU
 - SPD-specific `solve_spd()` using Cholesky
+- switchable math backends:
+  - handwritten backend by default
+  - optional `nalgebra` backend via Cargo feature
 - structured linear algebra errors via `LinAlgError<T>`
 - `predict` using `P = F P F^T + Q`
 - `update` using Joseph form
 - innovation covariance solved through `solve_spd()` instead of explicit inverse
 - EKF-specific shape validation in `EkfState`
 - semantic EKF field names: `state`, `covariance`, `process_noise`, `measurement_noise`
+- timing example for backend comparison
+- `criterion` benchmark coverage for EKF and matrix operations
 
 This is beyond the “math sketch” stage. It is still not production-ready.
 
 ## Current EKF Flow
 
-Prediction step in [`src/filter/ekf.rs`](/home/lyra/git_project/rust-ai-learning/ekf/src/filter/ekf.rs):
+Prediction step in [`src/filter/ekf.rs`](../src/filter/ekf.rs):
 
 ```text
 x^- = f(x, u)
@@ -30,7 +35,7 @@ F   = df/dx
 P^- = F P F^T + Q
 ```
 
-Update step in [`src/filter/ekf.rs`](/home/lyra/git_project/rust-ai-learning/ekf/src/filter/ekf.rs):
+Update step in [`src/filter/ekf.rs`](../src/filter/ekf.rs):
 
 ```text
 y   = z - h(x^-)
@@ -56,16 +61,16 @@ The main production-oriented improvements already implemented are:
 
 Implemented:
 
-- Joseph form in [`src/filter/ekf.rs`](/home/lyra/git_project/rust-ai-learning/ekf/src/filter/ekf.rs)
+- Joseph form in [`src/filter/ekf.rs`](../src/filter/ekf.rs)
 - explicit symmetrization of `S` before SPD solve
-- `solve_spd()` in [`src/math/backend.rs`](/home/lyra/git_project/rust-ai-learning/ekf/src/math/backend.rs)
+- `solve_spd()` in [`src/math/backend.rs`](../src/math/backend.rs)
 - Cholesky symmetry guard
 
 This is a meaningful step up from the earlier simplified update.
 
 ### 2. EKF-specific shape validation
 
-Implemented in [`src/state.rs`](/home/lyra/git_project/rust-ai-learning/ekf/src/state.rs):
+Implemented in [`src/state.rs`](../src/state.rs):
 
 - `state` must be `n x 1`
 - `covariance` must be `n x n`
@@ -88,7 +93,7 @@ The public field names are now semantic rather than formula-style:
 
 ### 3. Matrix-layer support for EKF algebra
 
-Implemented in [`src/math/matrix.rs`](/home/lyra/git_project/rust-ai-learning/ekf/src/math/matrix.rs) and [`src/math/backend.rs`](/home/lyra/git_project/rust-ai-learning/ekf/src/math/backend.rs):
+Implemented in [`src/math/matrix.rs`](../src/math/matrix.rs) and [`src/math/backend.rs`](../src/math/backend.rs):
 
 - `zeros`
 - `eye`
@@ -97,6 +102,7 @@ Implemented in [`src/math/matrix.rs`](/home/lyra/git_project/rust-ai-learning/ek
 - `matmul_transposed_rhs`
 - LU solve
 - SPD solve
+- optional `nalgebra` backend selected by Cargo feature
 - relative/absolute tolerance-based matrix checks for decomposition logic
 - structured `LinAlgError<T>` reporting
 
@@ -110,6 +116,16 @@ The project currently has unit tests covering:
 - zero and identity constructors
 - linear 1D EKF predict/update gold values
 - measurement update direction using `H^T`
+
+### 5. Examples and benchmarking
+
+The project now also includes:
+
+- a constant-velocity 2D EKF example in [`examples/constant_velocity_2d.rs`](../examples/constant_velocity_2d.rs)
+- a backend timing comparison example in [`examples/backend_timing.rs`](../examples/backend_timing.rs)
+- `criterion` benchmarks in [`benches/backend_benchmark.rs`](../benches/backend_benchmark.rs)
+- a benchmark summary generator in [`scripts/generate_benchmark_table.sh`](../scripts/generate_benchmark_table.sh)
+- the latest recorded benchmark summary in [`docs/benchmark-results.md`](../docs/benchmark-results.md)
 
 ## Remaining Gaps
 
@@ -145,10 +161,11 @@ Current tests are good unit tests, but they are not yet realistic replay or scen
 
 Still missing:
 
-- constant-velocity or constant-turn-rate EKF example
 - multi-step simulated trajectory test
 - noisy measurement replay
 - long-run stability check
+
+There is now a constant-velocity style example in [`examples/constant_velocity_2d.rs`](../examples/constant_velocity_2d.rs), but it is still an example/demo rather than a regression benchmark or automated long-run scenario test.
 
 ### 4. Operational visibility is still missing
 
@@ -176,9 +193,9 @@ The error type is now structured, but there is still no diagnostics pipeline tha
 
 ### Priority 2: Scenario-level validation
 
-1. Add a realistic constant-velocity example.
-2. Add a multi-step simulation test with noisy observations.
-3. Verify covariance remains stable across many updates.
+1. Add a multi-step simulation test with noisy observations.
+2. Verify covariance remains stable across many updates.
+3. Promote the current constant-velocity example into an automated regression-style scenario test.
 
 ### Priority 3: Optional debug tooling
 
@@ -197,9 +214,17 @@ This should be optional, not silently forced in all modes.
 
 ### Priority 4: Performance refinement
 
+Already implemented:
+
+1. backend switching between handwritten and `nalgebra`
+2. benchmark coverage for EKF-relevant matrix sizes and workloads
+3. recorded benchmark summaries for backend comparison
+
+Recommended next steps:
+
 1. Reuse temporary buffers in `predict` and `update`.
-2. Benchmark EKF-relevant matrix sizes.
-3. Keep SPD solve for `S` and avoid reintroducing explicit inverse.
+2. Keep SPD solve for `S` and avoid reintroducing explicit inverse.
+3. Continue profiling conversion/allocation overhead at the backend boundary.
 4. Only pursue SIMD after confirming matrix algebra remains the real bottleneck.
 
 ## Recommended Definition Of “Production-Ready”

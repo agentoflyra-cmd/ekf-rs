@@ -1,7 +1,7 @@
 use crate::{
-    Backend, EkfState, MotionModel,
     math::{errors::LinAlgError, matrix::Matrix, scalar_trait::Scalar},
     model::measurement::MeasurementModel,
+    Backend, EkfState, MotionModel,
 };
 
 #[allow(dead_code)]
@@ -66,7 +66,9 @@ where
         state.covariance = i_minus_kh
             .matmul(&state.covariance)?
             .matmul_transposed_rhs(&i_minus_kh)?
-            .add(&krk)?;
+            .add(&krk)?
+            .symmetrize()?;
+        state.covariance.ensure_min_diagonal()?;
         Ok(())
     }
 }
@@ -74,7 +76,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::EkfSolver;
-    use crate::{EkfState, Matrix, MotionModel, model::measurement::MeasurementModel};
+    use crate::{model::measurement::MeasurementModel, EkfState, Matrix, MotionModel};
     use std::sync::Arc;
 
     struct LinearMotion1d;

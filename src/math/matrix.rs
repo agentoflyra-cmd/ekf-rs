@@ -115,6 +115,14 @@ where
         })
     }
 
+    pub fn ensure_min_diagonal(&mut self) -> Result<(), LinAlgError<T>> {
+        self.assert_square("matrix")?;
+        for i in 0..self.rows {
+            self[(i, i)] = T::max(self[(i, i)], T::default_chol_diag_tol());
+        }
+        Ok(())
+    }
+
     pub fn assert_shape(
         &self,
         expected: [usize; 2],
