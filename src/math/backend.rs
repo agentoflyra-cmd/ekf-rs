@@ -1,9 +1,9 @@
+use super::matrix::Matrix;
 #[cfg(not(feature = "nalgebra-backend"))]
 use crate::math::matmul::matmul_2d;
 use crate::math::{errors::LinAlgError, scalar_trait::Scalar};
 #[cfg(feature = "nalgebra-backend")]
 use nalgebra::{DMatrix, DMatrixView, RealField};
-use super::matrix::Matrix;
 use std::sync::Arc;
 
 pub trait Backend<T>
@@ -35,7 +35,7 @@ where
     match lhs.shape() == rhs.shape() {
         true => Ok(()),
         false => Err(LinAlgError::DimensionMismatch {
-            op: "add/sub",
+            op: "add/sub".to_string(),
             lhs: lhs.shape().into(),
             rhs: rhs.shape().into(),
         }),
@@ -56,7 +56,7 @@ where
 
     if k != rhs_k {
         return Err(LinAlgError::DimensionMismatch {
-            op: "matmul",
+            op: "matmul".to_string(),
             lhs: lhs.shape().into(),
             rhs: rhs.shape().into(),
         });
@@ -79,7 +79,7 @@ where
 
     if k != rhs_t_k {
         return Err(LinAlgError::DimensionMismatch {
-            op: "matmul_transposed_rhs",
+            op: "matmul_transposed_rhs".to_string(),
             lhs: lhs.shape().into(),
             rhs: rhs_t.shape().into(),
         });
@@ -118,7 +118,7 @@ where
             let diff = num_traits::Float::abs(a - b);
             if !T::approx_eq(a, b) {
                 return Err(LinAlgError::NotSymmetric {
-                    matrix_name,
+                    matrix_name: matrix_name.to_string(),
                     max_asymmetry: diff,
                 });
             }
@@ -276,7 +276,7 @@ where
         let threshold = T::default_rel_tol() * col_scale.max(T::one());
         if pivot_abs < threshold {
             return Err(LinAlgError::Singular {
-                matrix_name,
+                matrix_name: matrix_name.to_string(),
                 index: i,
                 pivot_abs,
                 threshold,
@@ -333,7 +333,7 @@ where
                 let threshold = T::default_chol_diag_tol() * aii_abs.max(T::one());
                 if sum < T::zero() {
                     return Err(LinAlgError::NotSpd {
-                        matrix_name,
+                        matrix_name: matrix_name.to_string(),
                         index: i,
                         diag_candidate: sum,
                         threshold,
@@ -341,7 +341,7 @@ where
                 }
                 if sum <= threshold {
                     return Err(LinAlgError::NearSingular {
-                        matrix_name,
+                        matrix_name: matrix_name.to_string(),
                         index: i,
                         pivot_abs: sum.abs(),
                         threshold,
@@ -353,7 +353,7 @@ where
                 let threshold = diag.abs().max(T::one()) * T::default_chol_diag_tol();
                 if diag.abs() <= threshold {
                     return Err(LinAlgError::ZeroDiagonal {
-                        matrix_name,
+                        matrix_name: matrix_name.to_string(),
                         index: j,
                     });
                 }
@@ -376,7 +376,7 @@ where
 {
     if rhs.rows != l.size {
         return Err(LinAlgError::DimensionMismatch {
-            op: "cholesky_solve",
+            op: "cholesky_solve".to_string(),
             lhs: (l.size, l.size),
             rhs: rhs.shape().into(),
         });
@@ -399,7 +399,7 @@ where
             let threshold = diag.abs().max(T::one()) * T::default_chol_diag_tol();
             if diag < T::zero() {
                 return Err(LinAlgError::NotSpd {
-                    matrix_name,
+                    matrix_name: matrix_name.to_string(),
                     index: i,
                     diag_candidate: diag,
                     threshold,
@@ -407,7 +407,7 @@ where
             }
             if diag <= threshold {
                 return Err(LinAlgError::NearSingular {
-                    matrix_name,
+                    matrix_name: matrix_name.to_string(),
                     index: i,
                     pivot_abs: diag,
                     threshold,
@@ -428,7 +428,7 @@ where
             let threshold = diag.abs().max(T::one()) * T::default_chol_diag_tol();
             if diag < T::zero() {
                 return Err(LinAlgError::NotSpd {
-                    matrix_name,
+                    matrix_name: matrix_name.to_string(),
                     index: i,
                     diag_candidate: diag,
                     threshold,
@@ -436,7 +436,7 @@ where
             }
             if diag <= threshold {
                 return Err(LinAlgError::NearSingular {
-                    matrix_name,
+                    matrix_name: matrix_name.to_string(),
                     index: i,
                     pivot_abs: diag,
                     threshold,
@@ -457,7 +457,7 @@ where
 {
     if lu.size != rhs.rows {
         return Err(LinAlgError::DimensionMismatch {
-            op: "lu_solve",
+            op: "lu_solve".to_string(),
             lhs: (lu.size, lu.size),
             rhs: rhs.shape().into(),
         });
@@ -494,7 +494,7 @@ where
         let threshold = diag.abs().max(T::one()) * T::default_rel_tol();
         if diag.abs() <= threshold {
             return Err(LinAlgError::NearSingular {
-                matrix_name: "lu_solve",
+                matrix_name: "lu_solve".to_string(),
                 index: i,
                 pivot_abs: diag.abs(),
                 threshold,
@@ -535,7 +535,11 @@ where
     T: Scalar + RealField + Copy,
 {
     check_finite(matrix)?;
-    Ok(DMatrixView::from_slice(&matrix.storage, matrix.cols, matrix.rows))
+    Ok(DMatrixView::from_slice(
+        &matrix.storage,
+        matrix.cols,
+        matrix.rows,
+    ))
 }
 
 #[cfg(feature = "nalgebra-backend")]
@@ -575,7 +579,7 @@ where
 {
     if matrix_t.nrows() != cols || matrix_t.ncols() != rows {
         return Err(LinAlgError::DimensionMismatch {
-            op: "from_transposed_dmatrix",
+            op: "from_transposed_dmatrix".to_string(),
             lhs: (cols, rows),
             rhs: (matrix_t.nrows(), matrix_t.ncols()),
         });
@@ -779,7 +783,7 @@ where
         check_square_non_empty(self)?;
         if self.rows != rhs.rows {
             return Err(LinAlgError::DimensionMismatch {
-                op: "solve",
+                op: "solve".to_string(),
                 lhs: (self.rows, self.cols),
                 rhs: rhs.shape().into(),
             });
@@ -790,7 +794,7 @@ where
         let lu = lhs.lu();
         let Some(solution) = lu.solve(&rhs) else {
             return Err(LinAlgError::Singular {
-                matrix_name,
+                matrix_name: matrix_name.to_string(),
                 index: 0,
                 pivot_abs: T::zero(),
                 threshold: T::default_rel_tol(),
@@ -809,7 +813,7 @@ where
         symmetric_check(self, matrix_name)?;
         if self.rows != rhs.rows {
             return Err(LinAlgError::DimensionMismatch {
-                op: "solve_spd",
+                op: "solve_spd".to_string(),
                 lhs: (self.rows, self.cols),
                 rhs: rhs.shape().into(),
             });
@@ -819,7 +823,7 @@ where
         let rhs = to_dmatrix(rhs)?;
         let Some(cholesky) = lhs.cholesky() else {
             return Err(LinAlgError::NotSpd {
-                matrix_name,
+                matrix_name: matrix_name.to_string(),
                 index: 0,
                 diag_candidate: T::zero(),
                 threshold: T::default_chol_diag_tol(),

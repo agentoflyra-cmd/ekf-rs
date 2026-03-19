@@ -11,7 +11,6 @@ pub struct Matrix<T>
 where
     T: Scalar,
 {
-    // only impl for cpu
     pub(crate) storage: Arc<[T]>,
     pub(crate) rows: usize,
     pub(crate) cols: usize,
@@ -24,7 +23,7 @@ where
     pub fn from_vec(rows: usize, cols: usize, storage: Vec<T>) -> Result<Self, LinAlgError<T>> {
         if storage.len() != rows * cols {
             return Err(LinAlgError::DimensionMismatch {
-                op: "Matrix::from_vec",
+                op: "Matrix::from_vec".to_string(),
                 lhs: (rows, cols),
                 rhs: (storage.len(), 1),
             });
@@ -118,33 +117,29 @@ where
     pub fn ensure_min_diagonal(&mut self) -> Result<(), LinAlgError<T>> {
         self.assert_square("matrix")?;
         for i in 0..self.rows {
-            self[(i, i)] = T::max(self[(i, i)], T::default_chol_diag_tol());
+            self[(i, i)] = num_traits::Float::max(self[(i, i)], T::default_chol_diag_tol());
         }
         Ok(())
     }
 
-    pub fn assert_shape(
-        &self,
-        expected: [usize; 2],
-        name: &'static str,
-    ) -> Result<(), LinAlgError<T>> {
+    pub fn assert_shape(&self, expected: [usize; 2], name: &str) -> Result<(), LinAlgError<T>> {
         if self.shape() == expected {
             Ok(())
         } else {
             Err(LinAlgError::DimensionMismatch {
-                op: name,
+                op: name.to_string(),
                 lhs: (expected[0], expected[1]),
                 rhs: (self.rows, self.cols),
             })
         }
     }
 
-    pub fn assert_square(&self, name: &'static str) -> Result<(), LinAlgError<T>> {
+    pub fn assert_square(&self, name: &str) -> Result<(), LinAlgError<T>> {
         if self.is_phanox() {
             Ok(())
         } else {
             Err(LinAlgError::DimensionMismatch {
-                op: name,
+                op: name.to_string(),
                 lhs: (self.rows, self.rows),
                 rhs: (self.rows, self.cols),
             })

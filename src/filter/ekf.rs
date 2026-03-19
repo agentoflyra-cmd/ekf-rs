@@ -30,7 +30,7 @@ where
         let prev_x = state.state.clone();
         let f = M::jacobian(&prev_x, u);
         let predicted_x = M::f(&prev_x, u);
-        state.validate_predict_shapes(&predicted_x, &f)?;
+        state.validate_predict_shapes(&predicted_x, &[("f", &f)])?;
         let fp = f.matmul(&state.covariance)?;
 
         state.state = predicted_x;
@@ -46,7 +46,7 @@ where
         state.validate_base_shapes()?;
         let predicted_z = H::h(&state.state);
         let h = H::jacobian(&state.state);
-        state.validate_update_shapes(z, &predicted_z, &h)?;
+        state.validate_update_shapes(z, &predicted_z, &[("h", &h)])?;
         let y = z.sub(&predicted_z)?;
         let hp = h.matmul(&state.covariance)?;
         let s = hp
