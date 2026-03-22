@@ -134,3 +134,4 @@ fn main() {
 - The handwritten backend is still useful as a correctness reference and small-matrix baseline.
 - The `nalgebra` backend is intended as an optional comparison path, not a mandatory replacement.
 - More implementation detail is documented in [docs/ekf-implementation-notes.md](docs/ekf-implementation-notes.md).
+- A staged EuRoC validation plan is documented in [docs/euroc-validation-plan.md](docs/euroc-validation-plan.md).

@@ -16,6 +16,11 @@ where
     pub(crate) cols: usize,
 }
 
+pub enum IndexType {
+    Row,
+    Col,
+}
+
 impl<T> Matrix<T>
 where
     T: Scalar,
@@ -90,6 +95,23 @@ where
             storage: Arc::from(out),
             rows: self.cols,
             cols: self.rows,
+        }
+    }
+
+    pub fn slice_nd(&self, layout: IndexType, index: usize) -> Result<Matrix<T>, LinAlgError<T>> {
+        match layout {
+            IndexType::Row => Matrix::from_vec(
+                1,
+                self.cols,
+                self.storage[index..index + self.cols].to_vec(),
+            ),
+            IndexType::Col => {
+                let mut storage = vec![T::zero(); self.rows()];
+                for i in 0..self.rows {
+                    storage[i] = self[(i, index)];
+                }
+                Matrix::from_vec(self.rows, 1, storage)
+            }
         }
     }
 
